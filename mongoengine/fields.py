@@ -35,7 +35,7 @@ from mongoengine.base import (
 from mongoengine.base.utils import LazyRegexCompiler
 from mongoengine.common import _import_class
 from mongoengine.connection import DEFAULT_CONNECTION_NAME, get_db
-from mongoengine.document import Document, EmbeddedDocument
+from mongoengine.document import Document, EmbeddedDocument, DynamicEmbeddedDocument
 from mongoengine.errors import DoesNotExist, InvalidQueryError, ValidationError
 from mongoengine.queryset import DO_NOTHING
 from mongoengine.queryset.base import BaseQuerySet
@@ -780,6 +780,11 @@ class EmbeddedDocumentField(BaseField):
             field = doc_type._fields.get(member_name)
             if field:
                 return field
+        if (
+            member_name not in ("$", "S")
+            and any(issubclass(doc_type, DynamicEmbeddedDocument) for doc_type in doc_and_subclasses)
+        ):
+            return DynamicField(db_field=member_name)
 
     def prepare_query_value(self, op, value):
         if value is not None and not isinstance(value, self.document_type):
