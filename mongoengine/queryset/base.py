@@ -526,6 +526,7 @@ class BaseQuerySet:
         write_concern=None,
         read_concern=None,
         full_result=False,
+        session=None,
         **update,
     ):
         """Perform an atomic update on the fields matched by the query.
@@ -569,7 +570,7 @@ class BaseQuerySet:
                 update_func = collection.update_one
                 if multi:
                     update_func = collection.update_many
-                result = update_func(query, update, upsert=upsert)
+                result = update_func(query, update, upsert=upsert, session=session)
             if full_result:
                 return result
             elif result.raw_result:
@@ -638,7 +639,7 @@ class BaseQuerySet:
         )
 
     def modify(
-        self, upsert=False, full_response=False, remove=False, new=False, **update
+        self, upsert=False, full_response=False, remove=False, new=False, session=None, **update
     ):
         """Update and return the updated document.
 
@@ -679,7 +680,7 @@ class BaseQuerySet:
                 warnings.warn(msg, DeprecationWarning)
             if remove:
                 result = queryset._collection.find_one_and_delete(
-                    query, sort=sort, **self._cursor_args
+                    query, sort=sort, session=session, **self._cursor_args
                 )
             else:
                 if new:
@@ -692,6 +693,7 @@ class BaseQuerySet:
                     upsert=upsert,
                     sort=sort,
                     return_document=return_doc,
+                    session=session,
                     **self._cursor_args,
                 )
         except pymongo.errors.DuplicateKeyError as err:
