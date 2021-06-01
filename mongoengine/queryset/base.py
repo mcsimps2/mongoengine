@@ -99,6 +99,8 @@ class BaseQuerySet:
         # it anytime we change _limit. Inspired by how it is done in pymongo.Cursor
         self._empty = False
 
+        self._session = None
+
     def __call__(self, q_obj=None, **query):
         """Filter the selected documents by calling the
         :class:`~mongoengine.queryset.QuerySet` with a query.
@@ -348,7 +350,7 @@ class BaseQuerySet:
                 insert_func = collection.insert_one
 
         try:
-            inserted_result = insert_func(raw)
+            inserted_result = insert_func(raw, session=self._session)
             ids = (
                 [inserted_result.inserted_id]
                 if return_one
@@ -526,7 +528,6 @@ class BaseQuerySet:
         write_concern=None,
         read_concern=None,
         full_result=False,
-        session=None,
         **update,
     ):
         """Perform an atomic update on the fields matched by the query.
@@ -570,7 +571,7 @@ class BaseQuerySet:
                 update_func = collection.update_one
                 if multi:
                     update_func = collection.update_many
-                result = update_func(query, update, upsert=upsert, session=session)
+                result = update_func(query, update, upsert=upsert, session=self._session)
             if full_result:
                 return result
             elif result.raw_result:
@@ -639,7 +640,7 @@ class BaseQuerySet:
         )
 
     def modify(
-        self, upsert=False, full_response=False, remove=False, new=False, session=None, **update
+        self, upsert=False, full_response=False, remove=False, new=False, **update
     ):
         """Update and return the updated document.
 
@@ -680,7 +681,7 @@ class BaseQuerySet:
                 warnings.warn(msg, DeprecationWarning)
             if remove:
                 result = queryset._collection.find_one_and_delete(
-                    query, sort=sort, session=session, **self._cursor_args
+                    query, sort=sort, **self._cursor_args
                 )
             else:
                 if new:
@@ -693,7 +694,6 @@ class BaseQuerySet:
                     upsert=upsert,
                     sort=sort,
                     return_document=return_doc,
-                    session=session,
                     **self._cursor_args,
                 )
         except pymongo.errors.DuplicateKeyError as err:
@@ -818,6 +818,7 @@ class BaseQuerySet:
             "_max_time_ms",
             "_comment",
             "_batch_size",
+            "_session"
         )
 
         for prop in copy_props:
@@ -854,6 +855,11 @@ class BaseQuerySet:
         if queryset._cursor_obj:
             queryset._cursor_obj.limit(queryset._limit)
 
+        return queryset
+
+    def session(self, session):
+        queryset = self.clone()
+        queryset._session = session
         return queryset
 
     def skip(self, n):
@@ -1629,6 +1635,9 @@ class BaseQuerySet:
                 cursor_args[fields_name] = {}
 
             cursor_args[fields_name]["_text_score"] = {"$meta": "textScore"}
+
+        if self._session:
+            cursor_args["session"] = self._session
 
         return cursor_args
 
