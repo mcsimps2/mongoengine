@@ -323,6 +323,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
         _refs=None,
         save_condition=None,
         signal_kwargs=None,
+        session=None,
         **kwargs
     ):
         """Save the :class:`~mongoengine.Document` to the database. If the
@@ -395,10 +396,10 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
         try:
             # Save a new document or update an existing one
             if created:
-                object_id = self._save_create(doc, force_insert, write_concern)
+                object_id = self._save_create(doc, force_insert, write_concern, session=session)
             else:
                 object_id, created = self._save_update(
-                    doc, save_condition, write_concern
+                    doc, save_condition, write_concern, session=session
                 )
 
             if cascade is None:
@@ -410,6 +411,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
                     "validate": validate,
                     "write_concern": write_concern,
                     "cascade": cascade,
+                    "session": session
                 }
                 if cascade_kwargs:  # Allow granular control over cascades
                     kwargs.update(cascade_kwargs)
@@ -442,7 +444,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
 
         return self
 
-    def _save_create(self, doc, force_insert, write_concern):
+    def _save_create(self, doc, force_insert, write_concern, session=None):
         """Save a new document.
 
         Helper method, should only be used inside save().
@@ -450,17 +452,17 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
         collection = self._get_collection()
         with set_write_concern(collection, write_concern) as wc_collection:
             if force_insert:
-                return wc_collection.insert_one(doc).inserted_id
+                return wc_collection.insert_one(doc, session=session).inserted_id
             # insert_one will provoke UniqueError alongside save does not
             # therefore, it need to catch and call replace_one.
             if "_id" in doc:
                 select_dict = {"_id": doc["_id"]}
                 select_dict = self._integrate_shard_key(doc, select_dict)
-                raw_object = wc_collection.find_one_and_replace(select_dict, doc)
+                raw_object = wc_collection.find_one_and_replace(select_dict, doc, session=session)
                 if raw_object:
                     return doc["_id"]
 
-            object_id = wc_collection.insert_one(doc).inserted_id
+            object_id = wc_collection.insert_one(doc, session=session).inserted_id
 
         return object_id
 
@@ -496,7 +498,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
 
         return select_dict
 
-    def _save_update(self, doc, save_condition, write_concern):
+    def _save_update(self, doc, save_condition, write_concern, session=None):
         """Update an existing document.
 
         Helper method, should only be used inside save().
@@ -518,7 +520,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
             upsert = save_condition is None
             with set_write_concern(collection, write_concern) as wc_collection:
                 last_error = wc_collection.update_one(
-                    select_dict, update_doc, upsert=upsert
+                    select_dict, update_doc, upsert=upsert, session=session
                 ).raw_result
             if not upsert and last_error["n"] == 0:
                 raise SaveConditionError(
