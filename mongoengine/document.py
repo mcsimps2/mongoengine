@@ -267,7 +267,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
 
         return data
 
-    def modify(self, query=None, **update):
+    def modify(self, query=None, session=None, **update):
         """Perform an atomic update of the document in the database and reload
         the document object using updated version.
 
@@ -280,6 +280,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
         :param query: the update will be performed only if the document in the
             database matches the query
         :param update: Django-style update keyword arguments
+        :param session: (optional) PyMongo session to use for transactions
         """
         if query is None:
             query = {}
@@ -300,7 +301,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
         # Need to add shard key to query, or you get an error
         query.update(self._object_key)
 
-        updated = self._qs(**query).modify(new=True, **update)
+        updated = self._qs(**query).session(session).modify(new=True, **update)
         if updated is None:
             return False
 
@@ -353,6 +354,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
             Raises :class:`OperationError` if the conditions are not satisfied
         :param signal_kwargs: (optional) kwargs dictionary to be passed to
             the signal calls.
+        :param session: (optional) PyMongo session to use for transactions
 
         .. versionchanged:: 0.5
             In existing documents it only saves changed fields using
@@ -592,24 +594,26 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
             select_dict["__".join(field_parts)] = val
         return select_dict
 
-    def update(self, **kwargs):
+    def update(self, session=None, **kwargs):
         """Performs an update on the :class:`~mongoengine.Document`
         A convenience wrapper to :meth:`~mongoengine.QuerySet.update`.
 
         Raises :class:`OperationError` if called on an object that has not yet
         been saved.
+
+        :param session: (optional) PyMongo session to use for transactions
         """
         if self.pk is None:
             if kwargs.get("upsert", False):
                 query = self.to_mongo()
                 if "_cls" in query:
                     del query["_cls"]
-                return self._qs.filter(**query).update_one(**kwargs)
+                return self._qs.filter(**query).session(session).update_one(**kwargs)
             else:
                 raise OperationError("attempt to update a document not yet saved")
 
         # Need to add shard key to query, or you get an error
-        return self._qs.filter(**self._object_key).update_one(**kwargs)
+        return self._qs.filter(**self._object_key).session(session).update_one(**kwargs)
 
     def delete(self, signal_kwargs=None, **write_concern):
         """Delete the :class:`~mongoengine.Document` from the database. This
