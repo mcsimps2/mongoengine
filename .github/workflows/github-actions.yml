@@ -1,5 +1,7 @@
 name: MongoengineCI
 on:
+  workflow_dispatch:
+  # run on dispatch
   # All PR
   pull_request:
   # master branch merge
