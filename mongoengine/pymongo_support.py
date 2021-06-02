@@ -12,7 +12,7 @@ IS_PYMONGO_GTE_37 = PYMONGO_VERSION >= _PYMONGO_37
 
 
 def count_documents(
-    collection, filter, skip=None, limit=None, hint=None, collation=None
+    collection, filter, skip=None, limit=None, hint=None, collation=None, session=None
 ):
     """Pymongo>3.7 deprecates count in favour of count_documents"""
     if limit == 0:
@@ -31,7 +31,7 @@ def count_documents(
     # count_documents appeared in pymongo 3.7
     if IS_PYMONGO_GTE_37:
         try:
-            return collection.count_documents(filter=filter, **kwargs)
+            return collection.count_documents(filter=filter, session=session, **kwargs)
         except OperationFailure:
             # OperationFailure - accounts for some operators that used to work
             # with .count but are no longer working with count_documents (i.e $geoNear, $near, and $nearSphere)
@@ -39,7 +39,7 @@ def count_documents(
             # Keeping this should be reevaluated the day pymongo removes .count entirely
             pass
 
-    cursor = collection.find(filter)
+    cursor = collection.find(filter, session=session)
     for option, option_value in kwargs.items():
         cursor_method = getattr(cursor, option)
         cursor = cursor_method(option_value)

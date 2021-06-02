@@ -424,6 +424,7 @@ class BaseQuerySet:
         count = count_documents(
             collection=self._cursor.collection,
             filter=self._query,
+            session=self._session,
             **kwargs,
         )
 
