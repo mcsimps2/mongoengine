@@ -11,6 +11,7 @@ __all__ = [
     "get_connection",
     "get_db",
     "register_connection",
+    "TransactionSession"
 ]
 
 
@@ -397,6 +398,22 @@ def connect(db=None, alias=DEFAULT_CONNECTION_NAME, **kwargs):
         register_connection(alias, db, **kwargs)
 
     return get_connection(alias)
+
+
+class TransactionSession:
+    def __init__(self, alias=DEFAULT_CONNECTION_NAME):
+        client = get_connection(alias)
+        self.session = client.start_session()
+        self.transaction = self.session.start_transaction()
+
+    def __enter__(self):
+        self.session.__enter__()
+        self.transaction.__enter__()
+        return self.session
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.transaction.__exit__(exc_type, exc_val, exc_tb)
+        self.session.__exit__(exc_type, exc_val, exc_tb)
 
 
 # Support old naming convention
